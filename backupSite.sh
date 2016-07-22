@@ -16,7 +16,7 @@ TIMECAPSULE_VOLUME="/Data"
 TIMECAPSULE_PASSWORD="your_password"   
 MOUNT_POINT=/mnt/time     
 TIMECAPSULE_PATH="//$TIMECAPSULE_IP$TIMECAPSULE_VOLUME"
-
+ERR=0
 
 TIMECAPSULE=$(mount | grep /mnt/time)
 if  [[  "$TIMECAPSULE" == "" ]]; then
@@ -74,13 +74,16 @@ fi
 echo "Creating archive of site files..."
 tar zcfvv ${BACKUP_FOLDER}/wp/$(date +%Y%m%d_%H%M).tar.gz  ${WP_FOLDER}/  
 
+
 if [ $? -ne 0 ]; then
         echo "ERROR: Couldn't backup your wordpress directory..."
-        exit 1;
+        ERR=1
 fi
+
 # Umount the dirs...
 echo "Unmounting Time Capsule..."
 umount /mnt/time
 echo "Unmounting remote ftp site...."
 unmount /mnt/$SITE
+exit $ERR
 
