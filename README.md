@@ -3,4 +3,6 @@
 Quick hack to backup a remote web site on a shared storage, in this case on time capsule.
 The first section contains the custom variable to be adjusted.
 Eventually the ftp user  ftp password and site could be passed as arguments to generalize the script.
-!! Careful : curlftps that you need to install on your system, sends data in clear. Consider to wrapper into ssl.
+!! Careful : curlftps that you need to install on your system, sends data in clear. 
+Consider to wrapper into ssl.
+A progress bar is displayed, be aware that the fuser mount is slow, so the size calculation will take time.
