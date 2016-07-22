@@ -73,7 +73,7 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "Creating archive of site files..."
-zip -r -be  ${BACKUP_FOLDER}/wp/$(date +%Y%m%d_%H%M).zip ${WP_FOLDER}
+tar -cj ${WP_FOLDER} | pipebench >  ${BACKUP_FOLDER}/wp/$(date +%Y%m%d_%H%M).tar.bz2
 
 if [ $? -ne 0 ]; then
         echo "ERROR: Couldn't backup your wordpress directory..."
