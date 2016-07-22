@@ -73,7 +73,8 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "Creating archive of site files..."
-pv   ${WP_FOLDER} | zip -r   > ${BACKUP_FOLDER}/wp/$(date +%Y%m%d_%H%M).zip
+zip -r -be  ${BACKUP_FOLDER}/wp/$(date +%Y%m%d_%H%M).zip ${WP_FOLDER}
+
 if [ $? -ne 0 ]; then
         echo "ERROR: Couldn't backup your wordpress directory..."
         ERR=1
