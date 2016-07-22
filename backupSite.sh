@@ -71,10 +71,9 @@ if [ $? -ne 0 ]; then
         echo "ERROR: Couldn't dump your database. Check your permissions"
         exit 1;
 fi
-echo "calculating size of files...."
-SIZE=$(du -sb ${WP_FOLDER} | cut -f1)
+
 echo "Creating archive of site files..."
-zip -qr -   ${WP_FOLDER} | pv -s $SIZE   > ${BACKUP_FOLDER}/wp/$(date +%Y%m%d_%H%M).zip
+pv   ${WP_FOLDER} | zip -r   > ${BACKUP_FOLDER}/wp/$(date +%Y%m%d_%H%M).zip
 if [ $? -ne 0 ]; then
         echo "ERROR: Couldn't backup your wordpress directory..."
         ERR=1
