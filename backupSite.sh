@@ -72,9 +72,9 @@ if [ $? -ne 0 ]; then
         exit 1;
 fi
 echo "calculating size of files...."
-SIZE=$(du -sb ${WP_FOLDER})
+SIZE=$(du -sb ${WP_FOLDER} | cut -f1)
 echo "Creating archive of site files..."
-zip -qr -   ${WP_FOLDER} | pv -s $SIZE | cut -f1)  > ${BACKUP_FOLDER}/wp/$(date +%Y%m%d_%H%M).zip
+zip -qr -   ${WP_FOLDER} | pv -s $SIZE   > ${BACKUP_FOLDER}/wp/$(date +%Y%m%d_%H%M).zip
 if [ $? -ne 0 ]; then
         echo "ERROR: Couldn't backup your wordpress directory..."
         ERR=1
@@ -86,4 +86,5 @@ umount /mnt/time
 echo "Unmounting remote ftp site...."
 fusermount -u /mnt/$SITE
 exit $ERR
+
 
