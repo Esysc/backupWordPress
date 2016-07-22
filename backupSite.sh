@@ -71,10 +71,10 @@ if [ $? -ne 0 ]; then
         echo "ERROR: Couldn't dump your database. Check your permissions"
         exit 1;
 fi
+echo "calculating size of files...."
+SIZE=$(du -sb ${WP_FOLDER})
 echo "Creating archive of site files..."
-tar zcfvv ${BACKUP_FOLDER}/wp/$(date +%Y%m%d_%H%M).tar.gz  ${WP_FOLDER}/  
-
-
+zip -qr -   ${WP_FOLDER} | pv -s $SIZE | cut -f1)  > ${BACKUP_FOLDER}/wp/$(date +%Y%m%d_%H%M).zip
 if [ $? -ne 0 ]; then
         echo "ERROR: Couldn't backup your wordpress directory..."
         ERR=1
@@ -84,6 +84,6 @@ fi
 echo "Unmounting Time Capsule..."
 umount /mnt/time
 echo "Unmounting remote ftp site...."
-unmount /mnt/$SITE
+fusermount -u /mnt/$SITE
 exit $ERR
 
