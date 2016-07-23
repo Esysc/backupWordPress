@@ -2,19 +2,20 @@
 ### Backup script to backup a wordpress site hosted somewhere on Time capsule  ###
 #
 #
-SITE="<yoursite dns name>"
-FTP_SITE_PASSWD="<ftp password for site>"
-FTP_SITE_USER="ftp user for site"
+clear
 
+SITE="DNS SITE NAME"
+FTP_SITE_PASSWD='FTP SITE PASSWORD'
+FTP_SITE_USER="FTP USER PASSWORD"
+BACKUP="" # Leave empty
 # Mount timecapsule
-TIMECAPSULE=""
-BACKUP=""
+TIMECAPSULE="" # leave empty
 
-# Local time capsule 
-TIMECAPSULE_IP="xxx.xxx.xxx.xxx"                         
-TIMECAPSULE_VOLUME="/Data"       
-TIMECAPSULE_PASSWORD="your_password"   
-MOUNT_POINT=/mnt/time     
+# Local time capsule
+TIMECAPSULE_IP=""
+TIMECAPSULE_VOLUME="/Data"
+TIMECAPSULE_PASSWORD="TIME CAPSULE PASSWORD HERE"
+MOUNT_POINT=/mnt/time
 TIMECAPSULE_PATH="//$TIMECAPSULE_IP$TIMECAPSULE_VOLUME"
 ERR=0
 
@@ -31,9 +32,9 @@ fi
 # Mount $SITE
 BACKUP=$(mount | grep /mnt/$SITE)
 if [[  "$BACKUP" == "" ]]; then
+        mkdir -p /mnt/$SITE
         echo "mounting the remote site"
-        FTP_PASSWD="$FTP_SITE_PASSWD"
-        /usr/bin/curlftpfs  $SITE /mnt/yoursite/ -o user=$FTP_SITE_USER:$FTP_SITE_PASSWD -o auto_unmount
+        /usr/bin/curlftpfs  $SITE /mnt/$SITE/ -o user="$FTP_SITE_USER":$FTP_SITE_PASSWD -o auto_unmount
         if [ $? -ne 0 ]; then
                 echo "ERROR: Couldn't mount remote site"
                 exit 1;
@@ -56,7 +57,8 @@ WP_CONFIG="${WP_FOLDER}/wp-config.php"
 if ! test -f ${WP_CONFIG}; then
         echo "ERROR: Cannot detect wordpress installation here... Exiting"
         exit 1;
-fi
+
+i
 echo "Dumping mysql database...."
 # get the database connection
 
@@ -71,9 +73,8 @@ if [ $? -ne 0 ]; then
         echo "ERROR: Couldn't dump your database. Check your permissions"
         exit 1;
 fi
-
 echo "Creating archive of site files..."
-tar -cj ${WP_FOLDER} | pipebench >  ${BACKUP_FOLDER}/wp/$(date +%Y%m%d_%H%M).tar.bz2
+tar zcfvvP ${BACKUP_FOLDER}/wp/$(date +%Y%m%d_%H%M).tar.gz  ${WP_FOLDER}/  --exclude "*cache*"
 
 if [ $? -ne 0 ]; then
         echo "ERROR: Couldn't backup your wordpress directory..."
@@ -86,5 +87,3 @@ umount /mnt/time
 echo "Unmounting remote ftp site...."
 fusermount -u /mnt/$SITE
 exit $ERR
-
-
