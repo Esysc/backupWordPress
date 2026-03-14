@@ -1,0 +1,25 @@
+# backupSite.conf — configuration for backupSite.sh
+#
+# Copy this file to backupSite.conf and fill in the values.
+# Keep backupSite.conf out of version control (it is listed in .gitignore).
+
+# ---- Remote WordPress site ------------------------------------------------
+# The hostname (or IP) used both as the FTP host and as the MySQL host.
+SITE="example.com"
+
+# FTP credentials used by curlftpfs to mount the remote site.
+FTP_SITE_USER="ftp-username"
+FTP_SITE_PASSWD="ftp-password"
+
+# ---- Time Capsule (SMB/CIFS share) ----------------------------------------
+TIMECAPSULE_IP="192.168.1.1"
+
+# Sub-path inside the Time Capsule to mount (default: /Data).
+TIMECAPSULE_VOLUME="/Data"
+
+# SMB password for the Time Capsule share.
+TIMECAPSULE_PASSWORD="timecapsule-password"
+
+# ---- Local mount points (optional overrides) ------------------------------
+# Where to mount the Time Capsule locally (default: /mnt/time).
+# MOUNT_POINT="/mnt/time"
