@@ -1,0 +1,2 @@
+# Ignore the real config file that contains credentials
+backupSite.conf

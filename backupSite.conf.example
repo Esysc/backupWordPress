@@ -1,0 +1,77 @@
+# backupSite.conf — configuration for backupSite.sh
+#
+# Copy this file to backupSite.conf and fill in the values.
+# Keep backupSite.conf out of version control (it is listed in .gitignore).
+
+# ---- Remote WordPress site ------------------------------------------------
+# The hostname (or IP) used both as the FTP host and as the MySQL host.
+SITE="example.com"
+
+# FTP credentials used by curlftpfs to mount the remote site.
+FTP_SITE_USER="ftp-username"
+FTP_SITE_PASSWD="ftp-password"
+
+# ---- Backup destination ---------------------------------------------------
+# Where backups are written.  Choose ONE of the BACKUP_TYPE values below and
+# fill in the corresponding variables.  Backups are stored under:
+#   ${BACKUP_MOUNT_POINT}/${SITE}/backups/{db,wp}/
+#
+# BACKUP_TYPE: local | smb | nfs | rclone
+BACKUP_TYPE="smb"
+
+# Filesystem path where the backup destination is mounted (or, for
+# BACKUP_TYPE=local, the path where backups should be written directly).
+BACKUP_MOUNT_POINT="/mnt/backup"
+
+# ---------------------------------------------------------------------------
+# local — directory already accessible on the filesystem
+# ---------------------------------------------------------------------------
+# Use when the backup target is a local disk, an external USB drive, a NAS
+# share already mounted by fstab/automount, a cloud storage provider
+# mounted by the OS (e.g. Google Drive FS, Dropbox), or any other path that
+# is simply available as a directory.
+# No mounting is performed by this script.
+#
+# Example:
+#   BACKUP_TYPE="local"
+#   BACKUP_MOUNT_POINT="/media/my-usb-drive/backups"
+
+# ---------------------------------------------------------------------------
+# smb — SMB/CIFS share (NAS, Time Capsule, Windows share, etc.)
+# ---------------------------------------------------------------------------
+# SMB_HOST      IP address or hostname of the SMB server.
+# SMB_SHARE     Share path on the server (e.g. /Data or /share/backups).
+# SMB_USER      SMB username — leave commented out for guest/anonymous access.
+# SMB_PASSWORD  SMB password.
+SMB_HOST="192.168.1.1"
+SMB_SHARE="/Data"
+# SMB_USER="smb-username"
+SMB_PASSWORD="smb-password"
+
+# ---------------------------------------------------------------------------
+# nfs — NFS share
+# ---------------------------------------------------------------------------
+# NFS_HOST        IP address or hostname of the NFS server.
+# NFS_EXPORT      Export path on the server (e.g. /volume1/backups).
+# NFS_MOUNT_OPTS  Mount options passed to `mount -t nfs` (default: "defaults").
+#
+# Example:
+#   BACKUP_TYPE="nfs"
+#   BACKUP_MOUNT_POINT="/mnt/backup"
+#   NFS_HOST="192.168.1.2"
+#   NFS_EXPORT="/volume1/backups"
+#   NFS_MOUNT_OPTS="vers=4,rsize=8192,wsize=8192"
+
+# ---------------------------------------------------------------------------
+# rclone — cloud storage (S3, GCS, Backblaze B2, Dropbox, OneDrive, etc.)
+# ---------------------------------------------------------------------------
+# RCLONE_REMOTE     rclone remote path, e.g. "s3:mybucket/wp-backups" or
+#                   "gdrive:backups".  Configure the remote first with:
+#                     rclone config
+# RCLONE_MOUNT_OPTS Additional rclone mount flags (optional).
+#
+# Example:
+#   BACKUP_TYPE="rclone"
+#   BACKUP_MOUNT_POINT="/mnt/backup"
+#   RCLONE_REMOTE="s3:mybucket/wp-backups"
+#   RCLONE_MOUNT_OPTS="--allow-other --vfs-cache-mode writes"
