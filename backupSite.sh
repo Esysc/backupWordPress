@@ -1,10 +1,20 @@
 #!/usr/bin/env bash
-# Backup a remote WordPress site to a locally mounted Time Capsule (SMB share).
+# Backup a remote WordPress site to a configurable backup destination.
+#
+# Supported backup destination types (BACKUP_TYPE):
+#   local  — a directory already accessible on the filesystem (local disk,
+#             pre-mounted NAS, cloud-fuse mount managed by the OS, etc.)
+#   smb    — SMB/CIFS share (NAS, Time Capsule, Windows share …)
+#   nfs    — NFS share
+#   rclone — any rclone remote (S3, GCS, Backblaze B2, Dropbox, OneDrive …)
 #
 # Usage: backupSite.sh [config-file]
 #   config-file defaults to backupSite.conf in the same directory as this script.
 #
-# Dependencies: cifs-utils (mount.cifs), curlftpfs, mysql-client (mysqldump), gzip, tar
+# Dependencies: curlftpfs, mysql-client (mysqldump), gzip, tar
+#   + cifs-utils  when BACKUP_TYPE=smb
+#   + nfs-common  when BACKUP_TYPE=nfs
+#   + rclone      when BACKUP_TYPE=rclone
 # Note: curlftpfs transmits FTP credentials in clear text.  Consider an SFTP/rsync
 #       alternative for sensitive environments.
 
@@ -25,8 +35,8 @@ fi
 # shellcheck source=/dev/null
 source "${CONFIG_FILE}"
 
-# Validate required configuration variables
-REQUIRED_VARS=(SITE FTP_SITE_USER FTP_SITE_PASSWD TIMECAPSULE_IP TIMECAPSULE_PASSWORD)
+# Validate common required configuration variables
+REQUIRED_VARS=(SITE FTP_SITE_USER FTP_SITE_PASSWD BACKUP_TYPE BACKUP_MOUNT_POINT)
 for var in "${REQUIRED_VARS[@]}"; do
     if [[ -z "${!var:-}" ]]; then
         echo "ERROR: Required variable '${var}' is not set in ${CONFIG_FILE}" >&2
@@ -34,16 +44,49 @@ for var in "${REQUIRED_VARS[@]}"; do
     fi
 done
 
+# Validate type-specific required variables
+case "${BACKUP_TYPE}" in
+    local)
+        ;;
+    smb)
+        for var in SMB_HOST SMB_SHARE SMB_PASSWORD; do
+            if [[ -z "${!var:-}" ]]; then
+                echo "ERROR: BACKUP_TYPE=smb requires '${var}' to be set in ${CONFIG_FILE}" >&2
+                exit 1
+            fi
+        done
+        ;;
+    nfs)
+        for var in NFS_HOST NFS_EXPORT; do
+            if [[ -z "${!var:-}" ]]; then
+                echo "ERROR: BACKUP_TYPE=nfs requires '${var}' to be set in ${CONFIG_FILE}" >&2
+                exit 1
+            fi
+        done
+        ;;
+    rclone)
+        if [[ -z "${RCLONE_REMOTE:-}" ]]; then
+            echo "ERROR: BACKUP_TYPE=rclone requires 'RCLONE_REMOTE' to be set in ${CONFIG_FILE}" >&2
+            exit 1
+        fi
+        ;;
+    *)
+        echo "ERROR: Unknown BACKUP_TYPE '${BACKUP_TYPE}'. Must be one of: local, smb, nfs, rclone" >&2
+        exit 1
+        ;;
+esac
+
 # ---------------------------------------------------------------------------
 # Derived paths (not meant to be overridden in the config)
 # ---------------------------------------------------------------------------
-readonly TIMECAPSULE_VOLUME="${TIMECAPSULE_VOLUME:-/Data}"
-readonly TIMECAPSULE_PATH="//${TIMECAPSULE_IP}${TIMECAPSULE_VOLUME}"
-readonly MOUNT_POINT="${MOUNT_POINT:-/mnt/time}"
 readonly SITE_MOUNT="/mnt/${SITE}"
 readonly WP_FOLDER="${SITE_MOUNT}/httpdocs"
 readonly WP_CONFIG="${WP_FOLDER}/wp-config.php"
-readonly BACKUP_FOLDER="${MOUNT_POINT}/${SITE}/backups"
+readonly BACKUP_FOLDER="${BACKUP_MOUNT_POINT}/${SITE}/backups"
+
+# Track whether this script mounted the backup destination so cleanup knows
+# whether to unmount it.
+_BACKUP_MOUNTED=false
 
 # ---------------------------------------------------------------------------
 # Cleanup: unmount everything on exit (success or error)
@@ -56,9 +99,13 @@ cleanup() {
         fusermount -u "${SITE_MOUNT}" || true
     fi
 
-    if mount | grep -q "${MOUNT_POINT}"; then
-        echo "Unmounting Time Capsule..."
-        umount "${MOUNT_POINT}" || true
+    if [[ "${_BACKUP_MOUNTED}" == "true" ]] && mount | grep -q "${BACKUP_MOUNT_POINT}"; then
+        echo "Unmounting backup destination (${BACKUP_TYPE})..."
+        if [[ "${BACKUP_TYPE}" == "rclone" ]]; then
+            fusermount -u "${BACKUP_MOUNT_POINT}" || true
+        else
+            umount "${BACKUP_MOUNT_POINT}" || true
+        fi
     fi
 
     exit "${exit_code}"
@@ -66,15 +113,65 @@ cleanup() {
 trap cleanup EXIT
 
 # ---------------------------------------------------------------------------
-# Mount Time Capsule (SMB/CIFS)
+# Mount backup destination
 # ---------------------------------------------------------------------------
-if ! mount | grep -q "${MOUNT_POINT}"; then
-    echo "Mounting Time Capsule (${TIMECAPSULE_PATH} -> ${MOUNT_POINT})..."
-    mkdir -p "${MOUNT_POINT}"
-    mount.cifs "${TIMECAPSULE_PATH}" "${MOUNT_POINT}" \
-        -o "pass=${TIMECAPSULE_PASSWORD},file_mode=0770,dir_mode=0770,sec=ntlm" \
-        || { echo "ERROR: Could not mount Time Capsule" >&2; exit 1; }
-fi
+mount_backup_destination() {
+    mkdir -p "${BACKUP_MOUNT_POINT}"
+
+    case "${BACKUP_TYPE}" in
+        local)
+            echo "Using local backup destination: ${BACKUP_MOUNT_POINT}"
+            ;;
+        smb)
+            if ! mount | grep -q "${BACKUP_MOUNT_POINT}"; then
+                local smb_path="//${SMB_HOST}${SMB_SHARE}"
+                # SC2153: SMB_PASSWORD is a distinct config var, not a misspelling of DB_PASSWORD
+                # shellcheck disable=SC2153
+                local smb_opts="pass=${SMB_PASSWORD},file_mode=0770,dir_mode=0770,sec=ntlm"
+                if [[ -n "${SMB_USER:-}" ]]; then
+                    smb_opts="user=${SMB_USER},${smb_opts}"
+                fi
+                echo "Mounting SMB share (${smb_path} -> ${BACKUP_MOUNT_POINT})..."
+                mount.cifs "${smb_path}" "${BACKUP_MOUNT_POINT}" -o "${smb_opts}" \
+                    || { echo "ERROR: Could not mount SMB share" >&2; exit 1; }
+                _BACKUP_MOUNTED=true
+            fi
+            ;;
+        nfs)
+            if ! mount | grep -q "${BACKUP_MOUNT_POINT}"; then
+                local nfs_path="${NFS_HOST}:${NFS_EXPORT}"
+                local nfs_opts="${NFS_MOUNT_OPTS:-defaults}"
+                echo "Mounting NFS share (${nfs_path} -> ${BACKUP_MOUNT_POINT})..."
+                mount -t nfs "${nfs_path}" "${BACKUP_MOUNT_POINT}" -o "${nfs_opts}" \
+                    || { echo "ERROR: Could not mount NFS share" >&2; exit 1; }
+                _BACKUP_MOUNTED=true
+            fi
+            ;;
+        rclone)
+            if ! mount | grep -q "${BACKUP_MOUNT_POINT}"; then
+                local rclone_opts="${RCLONE_MOUNT_OPTS:---allow-other --vfs-cache-mode writes}"
+                echo "Mounting rclone remote (${RCLONE_REMOTE} -> ${BACKUP_MOUNT_POINT})..."
+                # SC2086: intentional word-splitting of rclone_opts flags
+                # shellcheck disable=SC2086
+                rclone mount ${rclone_opts} "${RCLONE_REMOTE}" "${BACKUP_MOUNT_POINT}" --daemon \
+                    || { echo "ERROR: Could not start rclone mount" >&2; exit 1; }
+                # Wait up to 30 s for the FUSE mount to become available
+                local i=0
+                until mount | grep -q "${BACKUP_MOUNT_POINT}"; do
+                    if (( i >= 30 )); then
+                        echo "ERROR: rclone mount did not become ready after 30 seconds" >&2
+                        exit 1
+                    fi
+                    sleep 1
+                    (( i++ )) || true
+                done
+                _BACKUP_MOUNTED=true
+            fi
+            ;;
+    esac
+}
+
+mount_backup_destination
 
 # ---------------------------------------------------------------------------
 # Mount remote WordPress site via FTP
